@@ -1,0 +1,29 @@
+SAVINGS:
+  high_value_threshold: 50000
+  velocity_tx_limit: 5
+  velocity_window_minutes: 10
+  daily_limit: 100000
+
+GENERAL:
+  high_value_threshold: 200000
+  velocity_tx_limit: 10
+  velocity_window_minutes: 10
+  daily_limit: 500000
+
+PREMIUM:
+  high_value_threshold: 1000000
+  velocity_tx_limit: 15
+  velocity_window_minutes: 10
+  daily_limit: 2500000
+
+BUSINESS:
+  high_value_threshold: 5000000
+  velocity_tx_limit: 30
+  velocity_window_minutes: 10
+  daily_limit: 20000000
+
+CREDIT_CARD:
+  credit_limit_multiplier: 0.80
+  velocity_tx_limit: 8
+  velocity_window_minutes: 5
+  daily_limit_multiplier: 1.0
