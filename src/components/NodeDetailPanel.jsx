@@ -9,6 +9,7 @@ export default function NodeDetailPanel({ node, onClose }) {
     const scoreColor = verdict === 'BLOCK' ? 'var(--color-risk-red)' : verdict === 'REVIEW' ? 'var(--color-risk-orange)' : 'var(--color-risk-green)';
     const roleColor = role === 'HUB' ? '#9b59b6' : role === 'BRIDGE' ? '#e67e22' : role === 'MULE' ? '#f1c40f' : '#3498db';
     const four_pillars = node.four_pillar_scores || {GAT: 0, LSTM: 0, EIF: 0, Rules: 0, Multiplier: 1.0};
+    const riskLabel = score > 70 ? 'CRITICAL RISK' : score > 30 ? 'ELEVATED RISK' : 'LOW RISK';
 
     return (
         <motion.div
@@ -101,13 +102,13 @@ export default function NodeDetailPanel({ node, onClose }) {
                 </div>
                 <div className="glass-card p-3 text-center">
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-risk-green)' }}>
-                        {node.total_incoming != null ? `$${node.total_incoming.toLocaleString()}` : '—'}
+                        {node.total_incoming != null ? `₹${node.total_incoming.toLocaleString()}` : '—'}
                     </div>
                     <div className="metric-label">Total Incoming</div>
                 </div>
                 <div className="glass-card p-3 text-center">
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-risk-orange)' }}>
-                        {node.total_outgoing != null ? `$${node.total_outgoing.toLocaleString()}` : '—'}
+                        {node.total_outgoing != null ? `₹${node.total_outgoing.toLocaleString()}` : '—'}
                     </div>
                     <div className="metric-label">Total Outgoing</div>
                 </div>

@@ -33,6 +33,7 @@ import networkx as nx
 from sklearn.ensemble import IsolationForest
 import yaml
 from pathlib import Path
+from backend.rbi_rules import apply_rbi_rules
 
 
 # ====================================================================== #
@@ -811,13 +812,14 @@ class ForensicsEngine:
                         self.account_patterns[acc].add("high_velocity")
                         break
 
-            # Tier 2: 5+ transactions in any 24h window (from old code)
-            if len(ts) >= 5:
+            # Adaptive threshold for Tier 2: 95th percentile of per-account txns, min 5
+            req_tx = max(5, int(len(grp) * 0.5)) # Just a simple dynamic scaler for the window
+            if len(ts) >= req_tx:
                 twenty_four_h = np.timedelta64(24, "h")
                 for i in range(len(ts)):
                     window_end = ts[i] + twenty_four_h
                     count_in_window = np.searchsorted(ts, window_end, side='right') - i
-                    if count_in_window >= 5:
+                    if count_in_window >= req_tx:
                         self._velocity_24h_accounts.add(acc)
                         self.account_patterns[acc].add("high_velocity_24h")
                         break
@@ -1200,7 +1202,15 @@ class ForensicsEngine:
         if self.df is None or self.df.empty:
             return
 
-        BANDS = [(8000, 9999), (4000, 4999)]
+        # Adaptive Structuring Bands
+        p99_val = self.df["amount"].quantile(0.99)
+        if p99_val < 100:
+            return # Dataset too small/low value for structuring
+            
+        # Common structural tiers: Just below the absolute outlier threshold, and half of it
+        tier1 = p99_val
+        tier2 = p99_val / 2.0
+        BANDS = [(tier1 * 0.8, tier1 * 0.999), (tier2 * 0.8, tier2 * 0.999)]
         MIN_HITS_PER_WINDOW = 5
         WINDOW_48H = timedelta(hours=48)
         MIN_WINDOWS = 2
@@ -1516,6 +1526,9 @@ class ForensicsEngine:
         KEEP_ALWAYS = {
             "isolation_cluster", "payroll", "merchant",
             "high_velocity", "high_velocity_24h", "low_variance",
+            "F1_FAST_PASSTHROUGH", "F2_DORMANT_BURST", "F3_MICRO_SMURFING",
+            "F4_MACRO_VOLUME_OUTLIER", "F5_RAPID_OUTBOUND", "F6_COORDINATED_GROUP",
+            "F7_OUTLIER_TXN", "F8_NEW_ACC_HIGH_VAL"
         }
 
         for acc in list(self.account_patterns.keys()):
@@ -1635,6 +1648,17 @@ class ForensicsEngine:
             if 'structuring' in patterns: rules_score += 15.0
             if 'high_velocity' in patterns or 'high_velocity_24h' in patterns: rules_score += 12.0
             if 'low_variance' in patterns: rules_score += 12.0
+            
+            # RBI/NPCI F-Flags
+            if 'F1_FAST_PASSTHROUGH' in patterns: rules_score += 25.0
+            if 'F2_DORMANT_BURST' in patterns: rules_score += 20.0
+            if 'F3_MICRO_SMURFING' in patterns: rules_score += 25.0
+            if 'F4_MACRO_VOLUME_OUTLIER' in patterns: rules_score += 15.0
+            if 'F5_RAPID_OUTBOUND' in patterns: rules_score += 20.0
+            if 'F6_COORDINATED_GROUP' in patterns: rules_score += 25.0
+            if 'F7_OUTLIER_TXN' in patterns: rules_score += 15.0
+            if 'F8_NEW_ACC_HIGH_VAL' in patterns: rules_score += 20.0
+            
             rules_score = min(25.0, rules_score)  # Can exceed 20 to guarantee REVIEW
             
             # Combine 
@@ -1645,7 +1669,10 @@ class ForensicsEngine:
             mult = {'HUB': 1.25, 'BRIDGE': 1.15, 'MULE': 1.10, 'LEAF': 1.0}.get(role, 1.0)
             
             # Guarantee REVIEW (40) for strong fraud patterns as per specs
-            STRONG_FRAUD_PATTERNS = {'cycle_length_3', 'cycle_length_4', 'cycle_length_5', 'shell_account', 'smurfing', 'threshold_breach'}
+            STRONG_FRAUD_PATTERNS = {
+                'cycle_length_3', 'cycle_length_4', 'cycle_length_5', 'shell_account', 'smurfing', 'threshold_breach',
+                'F1_FAST_PASSTHROUGH', 'F3_MICRO_SMURFING', 'F6_COORDINATED_GROUP', 'F2_DORMANT_BURST', 'F8_NEW_ACC_HIGH_VAL'
+            }
             has_strong_fraud = bool(patterns & STRONG_FRAUD_PATTERNS)
             if has_strong_fraud and raw_score < (40.0 / mult):
                 raw_score = 40.0 / mult
@@ -1788,6 +1815,12 @@ class ForensicsEngine:
 
         # ---- Stage 1: Detection algorithms...
         print(f"[{time.time()-self._start_time:.2f}s] Stage 1: Detection algorithms...")
+        
+        # Run Vectorized RBI Rules
+        rbi_flags = apply_rbi_rules(self.df)
+        for acc, f_flags in rbi_flags.items():
+            self.account_patterns[str(acc)].update(f_flags)
+            
         self.detect_cycles()
         self.detect_shells()
         self.detect_velocity()

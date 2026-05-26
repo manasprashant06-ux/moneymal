@@ -29,8 +29,8 @@ function buildTooltip(n) {
     
     const patterns = (n.detected_patterns || []).join(', ') || 'None';
     const rings    = (n.ring_ids || []).join(', ')           || 'None';
-    const inAmt    = n.total_incoming != null ? '$' + n.total_incoming.toLocaleString() : '–';
-    const outAmt   = n.total_outgoing != null ? '$' + n.total_outgoing.toLocaleString() : '–';
+    const inAmt    = n.total_incoming != null ? '₹' + n.total_incoming.toLocaleString() : '–';
+    const outAmt   = n.total_outgoing != null ? '₹' + n.total_outgoing.toLocaleString() : '–';
 
     return `
         <div style="
@@ -202,7 +202,7 @@ export default function NetworkGraph({ data, onNodeClick }) {
         network.on('click', (params) => {
             if (params.nodes.length > 0) {
                 const nodeId  = params.nodes[0];
-                const rawNode = data.nodes.find((n) => n.id === nodeId);
+                const rawNode = data.nodes.find((n) => String(n.id) === String(nodeId));
                 if (rawNode && onNodeClick) onNodeClick(rawNode);
             }
         });
